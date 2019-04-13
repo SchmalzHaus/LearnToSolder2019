@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=LearnToSolder2018.X
+PROJECTNAME=LearnToSolder2019.X
 
 # Active Configuration
 DEFAULTCONF=default
