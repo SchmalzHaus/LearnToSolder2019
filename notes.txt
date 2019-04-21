@@ -1,14 +1,12 @@
 LearnToSolder 2019 Notes file
 
 Build of first rev (v1) of board:
-* Thermals too aggressive. Use traces on just one layer instead.
+* Thermals too aggressive. Use traces on just one layer instead. (Done)
 * Update LED footprint
-  - Same sized pads on both top and bottom layers
-  - Separate pads from each other for fewer solder bridges
-* Create cutout for pin 1 dot for processor on tSilk somehow?
+  - Same sized pads on both top and bottom layers (Done)
+  - Separate pads from each other for fewer solder bridges (Done)
+* Create cutout for pin 1 dot for processor on tSilk somehow? (Done)
 * Update silk on back 
-  - larger/thicker text in general
-  - Better build hints (line drawings of LED long lead and battery holder shape)
-  - Glen Lake logo somehow?
-* Possibly update silk on front - "Glen Lake"?
-  
+  - larger/thicker text in general (Done)
+  - Better build hints (line drawings of LED long lead and battery holder shape) (Done)
+* Possibly update silk on front - "Glen Lake"? (Done)
