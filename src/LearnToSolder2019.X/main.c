@@ -1,10 +1,10 @@
 /*
- * Learn To Solder 2018 board software
+ * Learn To Solder 2019 board software
  * 
  * Written by Brian Schmalz of Schmalz Haus LLC
  * brian@schmalzhaus.com
  * 
- * Copyright 2018
+ * Copyright 2019
  * All of this code is in the public domain
  * 
  * Versions:
@@ -13,12 +13,6 @@
 
 #include "mcc_generated_files/mcc.h"
 
-// Starting time, in ms, between switching which LED is currently on in main pattern
-#define SLOW_DELAY          250
-
-// Maximum number of patterns allowed in the battery array
-#define NUMBER_OF_PATTERNS    8
-
 // Button debounce time in milliseconds
 #define BUTTON_DEBOUNCE_MS   20
 
@@ -26,13 +20,10 @@
 // button will be pressed
 #define SHUTDOWN_DELAY_MS   100
 
-// Time between two button presses below which is considered 'short'
-#define QUICK_PRESS_MS      250
-
 /* Switch input :  (pressed = low)
  * S1 = GP3
  * 
- * LEDs: (from left to right in claws)
+ * LEDs: (from left to right in claws, high = lit)
  * D1 = GP0 
  * D2 = GP1
  * D3 = GP2
@@ -63,13 +54,6 @@
 #define LED_D4                0x08  // D2 State 2 A5 high
 #define LED_D5                0x10  // D8 State 0 A5 high
 
-#define PATTERN_OFF_STATE     0 // State for all patterns where they are inactive
-
-// Index for each pattern into the patterns arrays
-#define PATTERN_RIGHT_FLASH   0
-#define PATTERN_LEFT_FLASH    1
-#define PATTERN_RIGHT_GAME    2
-
 // Maximum number of milliseconds to allow system to run
 #define MAX_AWAKE_TIME_MS     (5UL * 60UL * 1000UL)
 
@@ -82,78 +66,52 @@ typedef enum {
     BUTTON_STATE_RELEASED
 } ButtonState_t;
 
-static uint8_t TRISTable[] =
-{
-  0xFC,     // Right Red
-  0xFC,     // Right Green
-  0xCF,     // Right Blue
-  0xCF,     // Right Yellow
-  0xDE,     // Left Yellow
-  0xDE,     // Left Blue
-  0xED,     // Left Green
-  0xED      // Left Red
-};
 
-static uint8_t PORTTable[] =
-{
-  0x01,     // Right Red
-  0x02,     // Right Green
-  0x10,     // Right Blue
-  0x20,     // Right Yellow
-  0x20,     // Left Yellow
-  0x01,     // Left Blue
-  0x10,     // Left Green
-  0x02      // Left Red
-};
+// Working copy of LED bits to copy directly to LATA in the ISR
+static uint8_t LATALEDs;
 
-// Each bit represents an LED. Set high to turn that LED on. Interface from mainline to ISR
-static volatile uint8_t LEDOns = 0;
-// Counts up from 0 to 7, represents the LED number currently being serviced in the ISR
-static uint8_t LEDState = 0;
+// LED interface from mainline to ISR: a 0 to 255 brightness value for each LED
+static volatile uint8_t LEDBrightness[5];
 
-// Each pattern has a delay counter that counts down at a 1ms rate
-volatile uint16_t PatternDelay[NUMBER_OF_PATTERNS];
-// Each pattern has a state variable defining what state it is in
-volatile uint8_t PatternState[NUMBER_OF_PATTERNS];
+// Used only in ISR to track where in PWM cycle each LED is
+static uint8_t LEDPWMCount[5];
 
 // Counts number of milliseconds we are awake for, and puts us to sleep if 
 // we stay awake for too long
-volatile static uint32_t WakeTimer = 0;
+volatile static uint32_t WakeTimer;
 
 // Counts down from SHUTDOWN_DELAY_MS after everything is over before we go to sleep
-volatile static uint8_t ShutdownDelayTimer = 0;
+volatile static uint8_t ShutdownDelayTimer;
 
 // Countdown 1ms timers to  debounce the button inputs
-volatile static uint8_t DebounceTimer = 0;
+volatile static uint8_t DebounceTimer;
 
 // Keep track of the state of each button during debounce
 volatile static ButtonState_t ButtonState = BUTTON_STATE_IDLE;
 
 // Record the last value of WakeTimer when the button was pushed
-volatile static uint32_t LastButtonPressTime = 0;
-
-//void SetLEDOn(uint8_t LED)
-//{
-//  LEDOns = (uint8_t)(LEDOns | LED);
-//}
-
-//void SetLEDOff(uint8_t LED)
-//{
-//  LEDOns = (uint8_t)(LEDOns & ~LED);
-//}
+volatile static uint32_t LastButtonPressTime;
 
 void SetAllLEDsOff(void)
 {
-  LEDOns = 0;
+  uint8_t i;
+  
+  for (i=0; i < 5; i++)
+  {
+      LEDBrightness[i] = 0;
+  }
 }
 
-/* This ISR runs every 125 uS. It takes the values in LEDState and lights
- * up the LEDs appropriately.
+/* This ISR runs every 125 uS. It takes the values in LEDBrigthness and uses them to 
+ * generate software PWM for each LEDs.
+ * The PWM frequency will be 32ms (125uS * 256). The value in LEDBrightness for each LED
+ * will determine for how much of that time each LED is on for.
  * It also handles a number of software timer decrementing every 1ms.
  */
-void TMR0_Callback(void)
+void RunTMR0(void)
 {
   uint8_t i;
+  static uint8_t OneMSCounter = 0;
 
 #if 0
   // Default all LEDs to be off
@@ -172,26 +130,16 @@ void TMR0_Callback(void)
   }
 #endif
   
-  // Always increment state and bit
-  LEDState++;
-  if (LEDState == 8)
+  // Check to see if it's time to run the 1ms code
+  OneMSCounter++;
+  if (OneMSCounter >= 8)
   {
-    // Approximately 1ms has passed since last time LEDState was 0, so
+    // Approximately 1ms has passed since last time OneMSCounter was 0, so
     // perform the 1ms tasks
+    OneMSCounter = 0;
 
     // Always increment wake timer to count this millisecond
     WakeTimer++;
-
-    // Handle time delays for patterns
-//    for (i=0; i < 8; i++)
-//    {
-//      if (PatternDelay[i])
-//      {
-//        PatternDelay[i]--;
-//      }
-//    }
-
-    LEDState = 0;
 
     // Decrement button debounce timers
     if (DebounceTimer)
@@ -218,11 +166,9 @@ bool ButtonPressed(void)
     return (ButtonState == BUTTON_STATE_PRESSED);
 }
 
-// Return true if button is currently down (raw)
+// Return true if button is currently down
 bool CheckForButtonPushes(void)
-{
-  static bool LastButtonState = false;
-  
+{  
   // Debounce button press
   if (ButtonPressedRaw())
   {
@@ -231,23 +177,6 @@ bool CheckForButtonPushes(void)
       if (DebounceTimer == 0)
       {
         ButtonState = BUTTON_STATE_PRESSED;
-        
-        __delay_ms(5);
-        D1_ON
-        __delay_ms(200);
-        D1_OFF
-        D2_ON
-        __delay_ms(200);
-        D2_OFF
-        D3_ON
-        __delay_ms(200);
-        D3_OFF
-        D4_ON
-        __delay_ms(200);
-        D4_OFF
-        D5_ON
-        __delay_ms(200);
-        D5_OFF
       }
     }
     else if (ButtonState != BUTTON_STATE_PRESSED)
@@ -272,20 +201,21 @@ bool CheckForButtonPushes(void)
     }
   }
     
-  if (ButtonPressed())
-  {
-    if (LastButtonState == false)
-    {
-      PatternState[PATTERN_LEFT_FLASH] = 1;
-    }
-    LastButtonState = true;
-  }
-  else
-  {
-    LastButtonState = false;
-  }
-
   return ((bool)(ButtonPressedRaw()));
+}
+
+// Trigger the start of an LED pattern
+void StartPattern(void)
+{
+  
+}
+
+// If an LED pattern is running, do whatever needs to be done to run it
+// Return true if pattern is still playing back, false if it's done
+bool RunPattern(void)
+{
+  
+  return false;
 }
 
 /*
@@ -296,7 +226,7 @@ void main(void)
   // initialize the device
   SYSTEM_Initialize();
 
-  TMR0_SetInterruptHandler(TMR0_Callback);
+  TMR0_SetInterruptHandler(RunTMR0);
 
   // When using interrupts, you need to set the Global and Peripheral Interrupt Enable bits
   // Use the following macros to:
@@ -313,54 +243,38 @@ void main(void)
   // Disable the Peripheral Interrupts
   //INTERRUPT_PeripheralInterruptDisable();
     
-  uint8_t i;
-  bool APatternIsRunning = false;
-
+  /// Are these really needed? Probably not
   TRISA = TRISA_LEDS_ALL_OUTUPT;
   PORTA = PORTA_LEDS_ALL_LOW;
-
-  __delay_ms(5);
-        D1_ON
-        __delay_ms(200);
-        D1_OFF
-        D2_ON
-        __delay_ms(200);
-        D2_OFF
-        D3_ON
-        __delay_ms(200);
-        D3_OFF
-        D4_ON
-        __delay_ms(200);
-        D4_OFF
-        D5_ON
-        __delay_ms(200);
-        D5_OFF
-
   
   while (1)
-  {
-//    RunFlash();
+  {  
+    static bool PlayingPattern = false;
+
+    CheckForButtonPushes();
+    PlayingPattern = RunPattern();
     
-    APatternIsRunning = false;
-    for (i=0; i < 8; i++)
+    // If we're not already playing a pattern, has the user pressed the button?
+    if (!PlayingPattern && ButtonPressed())
     {
-      if (PatternState[i] != 0)
-      {
-        APatternIsRunning = true;
-      }
+      PlayingPattern = true;
+      StartPattern();
     }
-    if ((!APatternIsRunning && DebounceTimer == 0) || (WakeTimer > MAX_AWAKE_TIME_MS))
+
+    if (!PlayingPattern && (WakeTimer > MAX_AWAKE_TIME_MS))
     {
       SetAllLEDsOff();
-      // Allow LEDsOff command to percolate to LEDs
-      __delay_ms(5);
+      // Allow off command to percolate to LEDs (maximum 32ms)
+      __delay_ms(50);
 
+      // For SHUTDOWN_DELAY_MS, check to see if user has pressed the button just as we're trying to go to sleep
       ShutdownDelayTimer = SHUTDOWN_DELAY_MS;
 
       while (ShutdownDelayTimer && !CheckForButtonPushes())
       {
       }
 
+      // If the button was not pushed, this timer will be at zero, and it's time to sleep
       if (ShutdownDelayTimer == 0)
       {
           // Hit the VREGPM bit to put us in low power sleep mode
@@ -372,8 +286,6 @@ void main(void)
         WakeTimer = 0;
       }
     }
-
-    CheckForButtonPushes();
   }
 }
 /**
