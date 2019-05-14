@@ -241,15 +241,18 @@ void StartPattern(void)
 // Return true if pattern is still playing back, false if it's done
 bool RunPattern(void)
 {
+  bool ReturnValue = false;
+  
   switch (PatternState)
   {
     case 0:
-      
+      // Do nothing, as state zero is "no pattern playing"
       break;
  
     case 1:
       if (NextPatternStepTimer == 0)
       {
+        NextPatternStepTimer = 1000;
         PatternState = 2;
         LEDBrightness[0] = 0;
         LEDBrightness[1] = 255;
@@ -257,14 +260,67 @@ bool RunPattern(void)
         LEDBrightness[3] = 0;
         LEDBrightness[4] = 0;
       }
+      ReturnValue = true;
       break;
-       
+      
+    case 2:
+      if (NextPatternStepTimer == 0)
+      {
+        NextPatternStepTimer = 1000;
+        PatternState = 3;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 0;
+        LEDBrightness[2] = 255;
+        LEDBrightness[3] = 0;
+        LEDBrightness[4] = 0;
+      }
+      ReturnValue = true;
+      break;
+      
+    case 3:
+      if (NextPatternStepTimer == 0)
+      {
+        NextPatternStepTimer = 1000;
+        PatternState = 4;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 0;
+        LEDBrightness[2] = 0;
+        LEDBrightness[3] = 255;
+        LEDBrightness[4] = 0;
+      }
+      ReturnValue = true;
+      break;
+      
+    case 4:
+      if (NextPatternStepTimer == 0)
+      {
+        NextPatternStepTimer = 1000;
+        PatternState = 5;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 0;
+        LEDBrightness[2] = 0;
+        LEDBrightness[3] = 0;
+        LEDBrightness[4] = 255;
+      }
+      ReturnValue = true;
+      break;
+            
+    case 5:
+      if (NextPatternStepTimer == 0)
+      {
+        PatternState = 0;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 0;
+        LEDBrightness[2] = 0;
+        LEDBrightness[3] = 0;
+        LEDBrightness[4] = 0;
+      }
+      break;
+
     default:
       break;
   }
-    return true;
-  }
-  return false;
+  return ReturnValue;
 }
 
 /*
