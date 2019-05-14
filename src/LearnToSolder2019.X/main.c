@@ -48,11 +48,12 @@
 #define D5_ON                 LATAbits.LATA5 = 1;
 #define D5_OFF                LATAbits.LATA5 = 0;
 
-#define LED_D1                0x01  // D3 State 1 A0 high
-#define LED_D2                0x02  // D4 State 0 A1 high
-#define LED_D3                0x04  // D1 State 3 A4 high
-#define LED_D4                0x08  // D2 State 2 A5 high
-#define LED_D5                0x10  // D8 State 0 A5 high
+// Bit positions of each LED within Port A
+#define LED_D1                0x01  // A0
+#define LED_D2                0x02  // A1
+#define LED_D3                0x04  // A2
+#define LED_D4                0x10  // A4
+#define LED_D5                0x20  // A5
 
 // Maximum number of milliseconds to allow system to run
 #define MAX_AWAKE_TIME_MS     (5UL * 60UL * 1000UL)
@@ -92,6 +93,10 @@ volatile static ButtonState_t ButtonState = BUTTON_STATE_IDLE;
 // Record the last value of WakeTimer when the button was pushed
 volatile static uint32_t LastButtonPressTime;
 
+volatile static uint16_t NextPatternStepTimer;
+
+static uint8_t PatternState;
+
 void SetAllLEDsOff(void)
 {
   uint8_t i;
@@ -113,22 +118,31 @@ void RunTMR0(void)
   uint8_t i;
   static uint8_t OneMSCounter = 0;
 
-#if 0
-  // Default all LEDs to be off
-  TRISA = TRISA_LEDS_ALL_OUTUPT;
-  PORTA = PORTA_LEDS_ALL_LOW;
-
-  // Create local bit pattern to test for what LED we should be thinking about
-  i = (uint8_t)(1 << LEDState);
+  LATALEDs = 0;
   
-  // If the bit in LEDOns we're looking at is high (i.e. LED on)
-  if (i & LEDOns)
+  if (LEDBrightness[0] > 128)
   {
-    // Then set the tris and port registers from the tables
-    TRISA = TRISTable[LEDState];
-    PORTA = PORTTable[LEDState];
+    LATALEDs |= LED_D1;
   }
-#endif
+  if (LEDBrightness[1] > 128)
+  {
+    LATALEDs |= LED_D2;
+  }
+  if (LEDBrightness[2] > 128)
+  {
+    LATALEDs |= LED_D3;
+  }
+  if (LEDBrightness[3] > 128)
+  {
+    LATALEDs |= LED_D4;
+  }
+  if (LEDBrightness[4] > 128)
+  {
+    LATALEDs |= LED_D5;
+  }
+
+  // As a final step, copy over the bits we've set up for the 5 LEDs
+  LATA = LATALEDs;
   
   // Check to see if it's time to run the 1ms code
   OneMSCounter++;
@@ -150,6 +164,11 @@ void RunTMR0(void)
     if (ShutdownDelayTimer)
     {
       ShutdownDelayTimer--;
+    }
+    
+    if (NextPatternStepTimer)
+    {
+      NextPatternStepTimer--;
     }
   }
 }
@@ -204,17 +223,47 @@ bool CheckForButtonPushes(void)
   return ((bool)(ButtonPressedRaw()));
 }
 
+uint32_t PatternStartTime;
+
 // Trigger the start of an LED pattern
 void StartPattern(void)
 {
-  
+  NextPatternStepTimer = 1000;
+  PatternState = 1;
+  LEDBrightness[0] = 255;
+  LEDBrightness[1] = 0;
+  LEDBrightness[2] = 0;
+  LEDBrightness[3] = 0;
+  LEDBrightness[4] = 0;
 }
 
 // If an LED pattern is running, do whatever needs to be done to run it
 // Return true if pattern is still playing back, false if it's done
 bool RunPattern(void)
 {
-  
+  switch (PatternState)
+  {
+    case 0:
+      
+      break;
+ 
+    case 1:
+      if (NextPatternStepTimer == 0)
+      {
+        PatternState = 2;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 255;
+        LEDBrightness[2] = 0;
+        LEDBrightness[3] = 0;
+        LEDBrightness[4] = 0;
+      }
+      break;
+       
+    default:
+      break;
+  }
+    return true;
+  }
   return false;
 }
 
