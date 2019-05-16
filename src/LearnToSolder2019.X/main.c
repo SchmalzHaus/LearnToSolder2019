@@ -97,6 +97,8 @@ volatile static uint16_t NextPatternStepTimer;
 
 static uint8_t PatternState;
 
+static uint16_t PatternSpeed = 0;
+
 void SetAllLEDsOff(void)
 {
   uint8_t i;
@@ -107,46 +109,55 @@ void SetAllLEDsOff(void)
   }
 }
 
-/* This ISR runs every 125 uS. It takes the values in LEDBrigthness and uses them to 
- * generate software PWM for each LEDs.
- * The PWM frequency will be 32ms (125uS * 256). The value in LEDBrightness for each LED
- * will determine for how much of that time each LED is on for.
+/* This ISR runs every 125 uS. 
  * It also handles a number of software timer decrementing every 1ms.
  */
 void RunTMR0(void)
 {
   uint8_t i;
+  static uint8_t PWMCounter = 0;
   static uint8_t OneMSCounter = 0;
+  static uint8_t LEDBrightnessShadow[5] = {0,0,0,0,0};
 
-  LATALEDs = 0;
+  if (PWMCounter == 0)
+  {
+    LATALEDs = 0xFF;
+    for (i=0; i < 5; i++)
+    {
+      LEDBrightnessShadow[i] = LEDBrightness[i];
+    }
+  }
   
-  if (LEDBrightness[0] > 128)
+  // If an LED's brightness matches the counter, then turn the LED off
+  if (LEDBrightnessShadow[0] == PWMCounter)
   {
-    LATALEDs |= LED_D1;
+    LATALEDs &= ~LED_D1;
   }
-  if (LEDBrightness[1] > 128)
+  if (LEDBrightnessShadow[1] == PWMCounter)
   {
-    LATALEDs |= LED_D2;
+    LATALEDs &= ~LED_D2;
   }
-  if (LEDBrightness[2] > 128)
+  if (LEDBrightnessShadow[2] == PWMCounter)
   {
-    LATALEDs |= LED_D3;
+    LATALEDs &= ~LED_D3;
   }
-  if (LEDBrightness[3] > 128)
+  if (LEDBrightnessShadow[3] == PWMCounter)
   {
-    LATALEDs |= LED_D4;
+    LATALEDs &= ~LED_D4;
   }
-  if (LEDBrightness[4] > 128)
+  if (LEDBrightnessShadow[4] == PWMCounter)
   {
-    LATALEDs |= LED_D5;
+    LATALEDs &= ~LED_D5;
   }
 
   // As a final step, copy over the bits we've set up for the 5 LEDs
   LATA = LATALEDs;
   
+  PWMCounter++;
+  
   // Check to see if it's time to run the 1ms code
   OneMSCounter++;
-  if (OneMSCounter >= 8)
+  if (OneMSCounter >= TMR0_TICKS_PER_MS)
   {
     // Approximately 1ms has passed since last time OneMSCounter was 0, so
     // perform the 1ms tasks
@@ -228,96 +239,83 @@ uint32_t PatternStartTime;
 // Trigger the start of an LED pattern
 void StartPattern(void)
 {
-  NextPatternStepTimer = 1000;
+  NextPatternStepTimer = 1;
   PatternState = 1;
-  LEDBrightness[0] = 255;
+  PatternSpeed = 100;
+  LEDBrightness[0] = 0;
   LEDBrightness[1] = 0;
   LEDBrightness[2] = 0;
   LEDBrightness[3] = 0;
   LEDBrightness[4] = 0;
 }
 
+uint8_t Pattern[8][5] = {
+  {50, 0, 0, 0, 0},
+  { 0,50, 0, 0, 0},
+  { 0, 0,50, 0, 0},
+  { 0, 0, 0,50, 0},
+  { 0, 0, 0, 0,50},
+  { 0, 0, 0,50, 0},
+  { 0, 0,50, 0, 0},
+  { 0,50, 0, 0, 0}
+};
+
 // If an LED pattern is running, do whatever needs to be done to run it
 // Return true if pattern is still playing back, false if it's done
 bool RunPattern(void)
 {
-  bool ReturnValue = false;
+  bool ReturnValue = true;
+  uint8_t i;
   
   switch (PatternState)
   {
     case 0:
       // Do nothing, as state zero is "no pattern playing"
+      LEDBrightness[0] = 0;
+      LEDBrightness[1] = 0;
+      LEDBrightness[2] = 0;
+      LEDBrightness[3] = 0;
+      LEDBrightness[4] = 0;
+      ReturnValue = false;
       break;
- 
+      
     case 1:
       if (NextPatternStepTimer == 0)
       {
-        NextPatternStepTimer = 1000;
-        PatternState = 2;
-        LEDBrightness[0] = 0;
-        LEDBrightness[1] = 255;
-        LEDBrightness[2] = 0;
-        LEDBrightness[3] = 0;
-        LEDBrightness[4] = 0;
+        PatternSpeed = (uint8_t)(((uint16_t)PatternSpeed * (uint16_t)9) / (uint16_t)10);
       }
-      ReturnValue = true;
-      break;
-      
     case 2:
-      if (NextPatternStepTimer == 0)
-      {
-        NextPatternStepTimer = 1000;
-        PatternState = 3;
-        LEDBrightness[0] = 0;
-        LEDBrightness[1] = 0;
-        LEDBrightness[2] = 255;
-        LEDBrightness[3] = 0;
-        LEDBrightness[4] = 0;
-      }
-      ReturnValue = true;
-      break;
-      
     case 3:
-      if (NextPatternStepTimer == 0)
-      {
-        NextPatternStepTimer = 1000;
-        PatternState = 4;
-        LEDBrightness[0] = 0;
-        LEDBrightness[1] = 0;
-        LEDBrightness[2] = 0;
-        LEDBrightness[3] = 255;
-        LEDBrightness[4] = 0;
-      }
-      ReturnValue = true;
-      break;
-      
     case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
       if (NextPatternStepTimer == 0)
       {
-        NextPatternStepTimer = 1000;
-        PatternState = 5;
-        LEDBrightness[0] = 0;
-        LEDBrightness[1] = 0;
-        LEDBrightness[2] = 0;
-        LEDBrightness[3] = 0;
-        LEDBrightness[4] = 255;
+        NextPatternStepTimer = PatternSpeed;
+
+        for (i=0; i < 5; i++)
+        {
+          LEDBrightness[i] = Pattern[PatternState-1][i];
+        }
+
+        PatternState++;
+        if (PatternState >= 9)
+        {
+          PatternState = 1;
+        }
+
+        if (PatternSpeed < 15)
+        {
+          ReturnValue = false;
+          PatternState = 0;
+        }
       }
-      ReturnValue = true;
       break;
             
-    case 5:
-      if (NextPatternStepTimer == 0)
-      {
-        PatternState = 0;
-        LEDBrightness[0] = 0;
-        LEDBrightness[1] = 0;
-        LEDBrightness[2] = 0;
-        LEDBrightness[3] = 0;
-        LEDBrightness[4] = 0;
-      }
-      break;
-
     default:
+      ReturnValue = false;
       break;
   }
   return ReturnValue;
@@ -328,6 +326,8 @@ bool RunPattern(void)
  */
 void main(void)
 {
+  static bool PlayingPattern = false;
+
   // initialize the device
   SYSTEM_Initialize();
 
@@ -354,8 +354,6 @@ void main(void)
   
   while (1)
   {  
-    static bool PlayingPattern = false;
-
     CheckForButtonPushes();
     PlayingPattern = RunPattern();
     

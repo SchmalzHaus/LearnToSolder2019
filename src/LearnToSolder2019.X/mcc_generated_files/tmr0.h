@@ -64,6 +64,8 @@
 */
 
 #define TMR0_INTERRUPT_TICKER_FACTOR    1
+      
+#define TMR0_TICKS_PER_MS              31
 
 /**
   Section: TMR0 APIs

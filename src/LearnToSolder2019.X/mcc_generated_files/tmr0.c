@@ -60,7 +60,8 @@ void (*TMR0_InterruptHandler)(void);
   Section: TMR0 APIs
 */
 
-#define TMR0_RELOAD 0x87        // Each of LEDs serviced for 125uS every 1ms
+//#define TMR0_RELOAD 0x87        // Each of LEDs serviced for 125uS every 1ms
+#define TMR0_RELOAD (0xE0)        // Each of LEDs serviced for 125uS every 1ms
 
 void TMR0_Initialize(void)
 {
