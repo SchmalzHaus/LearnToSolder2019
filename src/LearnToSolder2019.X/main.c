@@ -241,7 +241,7 @@ void StartPattern(void)
 {
   NextPatternStepTimer = 1;
   PatternState = 1;
-  PatternSpeed = 100;
+  PatternSpeed = 150;
   LEDBrightness[0] = 0;
   LEDBrightness[1] = 0;
   LEDBrightness[2] = 0;
@@ -250,14 +250,14 @@ void StartPattern(void)
 }
 
 uint8_t Pattern[8][5] = {
-  {50, 0, 0, 0, 0},
-  { 0,50, 0, 0, 0},
+  {50, 0, 0, 0, 1},
+  { 0,50, 0, 1, 0},
   { 0, 0,50, 0, 0},
-  { 0, 0, 0,50, 0},
-  { 0, 0, 0, 0,50},
-  { 0, 0, 0,50, 0},
+  { 0, 1, 0,50, 0},
+  { 1, 0, 0, 0,50},
+  { 0, 1, 0,50, 0},
   { 0, 0,50, 0, 0},
-  { 0,50, 0, 0, 0}
+  { 0,50, 0, 1, 0}
 };
 
 // If an LED pattern is running, do whatever needs to be done to run it
@@ -266,6 +266,7 @@ bool RunPattern(void)
 {
   bool ReturnValue = true;
   uint8_t i;
+  static uint8_t BlinkCount = 0;
   
   switch (PatternState)
   {
@@ -282,7 +283,7 @@ bool RunPattern(void)
     case 1:
       if (NextPatternStepTimer == 0)
       {
-        PatternSpeed = (uint8_t)(((uint16_t)PatternSpeed * (uint16_t)9) / (uint16_t)10);
+        PatternSpeed = (uint8_t)(((uint16_t)PatternSpeed * (uint16_t)8) / (uint16_t)10);
       }
     case 2:
     case 3:
@@ -308,8 +309,46 @@ bool RunPattern(void)
 
         if (PatternSpeed < 15)
         {
-          ReturnValue = false;
+          NextPatternStepTimer = 1;
+          PatternState = 9;
+          BlinkCount = 0;
+        }
+      }
+      break;
+      
+    case 9:
+      if (NextPatternStepTimer == 0)
+      {
+        NextPatternStepTimer = 350;
+        LEDBrightness[0] = 50;
+        LEDBrightness[1] = 0;
+        LEDBrightness[2] = 50;
+        LEDBrightness[3] = 0;
+        LEDBrightness[4] = 50;
+        PatternState = 10;
+        BlinkCount++;
+      }
+      break;
+      
+    case 10:
+      if (NextPatternStepTimer == 0)
+      {
+        NextPatternStepTimer = 350;
+        LEDBrightness[0] = 0;
+        LEDBrightness[1] = 50;
+        LEDBrightness[2] = 0;
+        LEDBrightness[3] = 50;
+        LEDBrightness[4] = 0;
+        PatternState = 9;
+        if (BlinkCount >= 4)
+        {
           PatternState = 0;
+          ReturnValue = false;
+          LEDBrightness[0] = 0;
+          LEDBrightness[1] = 0;
+          LEDBrightness[2] = 0;
+          LEDBrightness[3] = 0;
+          LEDBrightness[4] = 0;
         }
       }
       break;
