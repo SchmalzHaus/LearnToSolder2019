@@ -10,3 +10,11 @@ Build of first rev (v1) of board:
   - larger/thicker text in general (Done)
   - Better build hints (line drawings of LED long lead and battery holder shape) (Done)
 * Possibly update silk on front - "Glen Lake"? (Done)
+
+(5/18/2019) V2 of the board was made with all of the above fixed
+Blue solder mask
+
+Things to improve for 2020:
+* Do not use a ground plane. JLCPCB does not have good enough registration between the solder mask and the copper, so when kids use too much solder, it makes bridges between pins and GND.
+* Do not pass out the pliers. They are not needed, and confuse the students.
+* Use the document camera to live-demo soldering on the exact board they will solder on. Replace the microscope soldering video witht this.
